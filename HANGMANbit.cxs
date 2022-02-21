@@ -1,0 +1,409 @@
+'*********************************************************************
+'
+' Copyright (c) 2021-2022 TheMrCerebro
+'
+' HANGMANbit - Zlib license.
+'
+' This software is provided 'as-is', without any express or
+' implied warranty. In no event will the authors be held
+' liable for any damages arising from the use of this software.
+'
+' Permission is granted to anyone to use this software for any purpose,
+' including commercial applications, and to alter it and redistribute
+' it freely, subject to the following restrictions:
+'
+' 1. The origin of this software must not be misrepresented;
+' you must not claim that you wrote the original software.
+' If you use this software in a product, an acknowledgment
+' in the product documentation would be appreciated but
+' is not required.
+'
+' 2. Altered source versions must be plainly marked as such,
+' and must not be misrepresented as being the original software.
+'
+' 3. This notice may not be removed or altered from any
+' source distribution.
+'
+'*********************************************************************
+
+#GLFW_WINDOW_TITLE="HANGMANbit - by TheMrCerebro"
+#GLFW_WINDOW_WIDTH=512
+#GLFW_WINDOW_HEIGHT=512
+#MOJO_IMAGE_FILTERING_ENABLED=False
+
+Import mojo
+
+Import inc.autofit
+Import inc.fonts
+Import inc.shapes
+
+Function Main()
+	New Game()
+End
+
+Class STAR
+	Field x:Int,y:Int,c:int,a:Float
+End
+
+Class LETTER
+	Field char:Int,x:Int,y:Int,c:Int,r:Float,s:int
+end
+
+Class Game Extends App
+	
+	'constructor
+	Method OnCreate()
+
+		SetVirtualDisplay(64,64)
+		SetUpdateRate(30)
+		Seed = Millisecs()
+
+		LoadFont("terminal.fnt")
+		
+		'carga las imagenes
+		imgTitle = LoadImage("title.png")
+		imgMountains = LoadImage("mountains.png")
+		imgTree = LoadImage("tree.png")
+		imgHud = LoadImage("hud.png")
+		imgPlayer = LoadImage("player.png",16,24,7)
+
+		'carga el archivo con todas las palabras
+		words = LoadString("words.txt").Replace("~r","").Split("~n")
+
+		'carga los sonidos
+		sndSelect = LoadSound("select.wav")
+		sndHurt = LoadSound("hurt.wav")
+		sndPowerup = LoadSound("powerup.wav")
+		sndWin = LoadSound("win.wav")
+		sndOver = LoadSound("over.wav")
+		sndEqual = LoadSound("equal.wav")
+	
+		'Crea el cielo
+		For Local i:int=0 Until 12
+			Local str:=New STAR()
+			str.x = 8 + ( 16 * (i Mod 4) ) + Rnd(-4,4)
+			str.y = 16 + ( 12 * (i/4) ) + Rnd(-4,4)
+			str.c = Rnd(8,15)
+			str.a = Rnd(0.1,1.0)
+			strA.AddLast(str)
+		Next
+		
+		For Local i:Int=0 Until 8
+			Local ltt:=New LETTER
+			ltt.char=Rnd(65,90)
+			ltt.c=Rnd(8,15)
+			ltt.r=Rnd(0,360)
+			ltt.x=Rnd(0,60)
+			ltt.y=Rnd(0,56)
+			ltt.s=Rnd(1,4)
+			lttA.AddLast(ltt)
+		next
+
+		'Activa la musica
+		PlayMusic("theme.ogg")
+
+	End
+	
+	Method OnUpdate()
+
+		#If TARGET="glfw"
+		If KeyHit(KEY_ESCAPE) Then EndApp()
+		If KeyHit(KEY_F4)
+			fullscreen=Not fullscreen
+			If fullscreen
+				SetDeviceWindow(DesktopMode.Width,DesktopMode.Height,1)
+				HideMouse()
+			Else
+				SetDeviceWindow(512,512,4)
+				ShowMouse()
+			Endif
+		Endif
+		#Endif
+	
+		If fader=0
+
+			Select state
+				
+			Case STATE_MENU
+			
+				For Local ltt:=Eachin lttA
+				
+					ltt.y += 1
+					ltt.r += 1
+					If ltt.y>64+(ltt.s*8)
+						ltt.x=Rnd(0,60)
+						ltt.char=Rnd(65,90)
+						ltt.c=Rnd(8,15)
+						ltt.s=Rnd(1,4)
+						ltt.y=-(ltt.s*8)
+					endif
+					
+				Next
+				
+				If KeyHit(KEY_X)
+
+					PlaySound(sndSelect,1)
+					fader = 1;fr = 255;fg = 255;fb = 255
+					state = STATE_INGAME
+					level = 0
+					NewWord()
+
+				Endif
+				
+			Case STATE_INGAME
+
+		'Actualiza las estrellas
+
+		        If lifes=6
+
+					time += 1
+					If time>=15
+						fader=1;fr=255;fg=0;fb=0
+						PlaySound(sndOver,1)
+						state=STATE_LOSE
+					Endif
+					
+        		Else If test.Find("-")<0
+            	    
+					time += 1
+					If time>=15
+					    fader=1;fr=0;fg=255;fb=0
+						PlaySound(sndWin,1)
+						If level=104
+							state=STATE_OVER
+						Else
+							state=STATE_WIN
+						endif
+					Endif
+    			
+            	Else
+
+					Local found:Bool
+					
+					Local char:Int = GetChar()
+					If char>0
+						
+						Local tmp:String
+						For Local i:Int=0 Until words[level].Length
+						
+							If words[level][i]=char
+							
+								If test[i]=char Then PlaySound(sndEqual,1) Else PlaySound(sndPowerup,1)
+								
+								tmp += String.FromChar(char)
+								found=True
+								
+							Else
+								tmp += String.FromChar(test[i])
+							Endif
+							
+						Next
+						test = tmp
+
+						If Not found
+							shake = 15
+                            lifes += 1
+							PlaySound(sndHurt,3)
+						endif
+
+					Endif
+						
+				Endif
+
+			Case STATE_OVER
+
+    			If KeyHit(KEY_X)
+    				
+    				PlaySound(sndSelect,1)
+    				fader=1;fr=255;fg=255;fb=255
+    				state=STATE_MENU
+                	
+                Endif
+				
+			Case STATE_LOSE
+
+    			If KeyHit(KEY_X)
+    				
+    				PlaySound(sndSelect,1)
+    				fader=1;fr=255;fg=0;fb=0
+    				state=STATE_MENU
+
+            	endif
+				
+			Case STATE_WIN
+	            		         
+				If KeyHit(KEY_X)
+				
+					PlaySound(sndSelect,1)
+					fader=1;fr=0;fg=255;fb=0
+					level += 1
+					NewWord()
+					state=STATE_INGAME	
+					
+				Endif			    
+
+			End
+
+		Endif
+		
+		'Actualiza el fundido de pantalla
+		If fader>0.05 Then fader -= 0.05 Else fader=0
+		
+	End
+
+    Method OnRender()
+    
+	    UpdateVirtualDisplay()
+        
+		'Actualiza el temblor de la pantalla
+		If shake>0
+			Translate(Rnd(-1,1),Rnd(-1,1))
+			shake -= 1
+		Endif
+		
+		Select state
+			
+		Case STATE_MENU
+		
+			For Local ltt:=Eachin lttA
+
+    			SetColor(ltt.c)
+    			
+    			PushMatrix()
+
+    				Translate(ltt.x,ltt.y)
+					Scale(ltt.s,ltt.s)
+    				Rotate(ltt.r)
+    			
+					Text(String.FromChar(ltt.char),0,0)	
+
+				PopMatrix()
+				
+			Next
+			
+    		SetAlpha(1.0)
+    		SetColor(255,255,255)
+				
+			DrawImage(imgTitle,0,2)
+			Text("[TheMrCerebro]",32,58,0.5,0.5)
+			
+			SetAlpha(Abs(Cos(Millisecs()/8 Mod 180)))
+			Text("-X- to START",32,40,0.5,0.5)
+			
+		Case STATE_INGAME
+
+    		'Dibuja las estrellas
+    		For Local str:=Eachin strA	
+    			SetColor(str.c)
+    			SetAlpha(Abs(Cos(str.a * Millisecs()/8 Mod 180)))
+    			Point(str.x,str.y)					
+    		Next
+    		
+    		SetAlpha(1.0)
+    		SetColor(255,255,255)
+			
+			DrawImage(imgMountains,0,32)
+			DrawImage(imgTree,0,0)
+			DrawImage(imgHud,0,54)
+			
+			Text("L:"+level/8,0,0)
+			Text("W:"+(level Mod 8),63,0,1)
+			
+			DrawImage(imgPlayer,24,19,lifes)
+			
+			' Limite 9 letras
+			Text(test.ToUpper,32,54,0.5)
+			
+			SetAlpha(Abs(Cos(Millisecs()/8 Mod 180)))
+			Text(titles[level/8],32,0,0.5)
+
+		Case STATE_WIN
+		
+			Text("Very good!",32,0,0.5)
+			Text("The word has:",32,8,0.5)
+			Text("Press X to NEXT",32,50,0.5)
+			
+			SetAlpha(Abs(Cos(Millisecs()/2 Mod 180)))
+			SetColor(0,255,0)
+			Text("- "+words[level].ToUpper+" -",32,32,0.5,0.5)
+			
+		Case STATE_LOSE
+
+    		Text("You failed!",32,2,0.5)
+    		Text("The word has:",32,10,0.5)
+    		Text("Press X to MENU",32,50,0.5)
+    			
+    		SetAlpha(Abs(Cos(Millisecs()/2 Mod 180)))
+    		SetColor(255,0,0)
+    		Text("- "+words[level].ToUpper+" -",32,32,0.5,0.5)
+			
+		Case STATE_OVER
+
+    		Text("Game over!",32,2,0.5)
+    		Text("You just finished",32,10,0.5)
+    		Text("the game :-)",32,18,0.5)
+    
+    		Text("Press X to MENU",32,50,0.5)
+    			
+    		SetAlpha(Abs(Cos(Millisecs()/2 Mod 180)))
+    		SetColor(0,255,0)
+    		Text("Thanks for playing ",32,32,0.5)
+			
+		End
+		
+		'Actualiza el oscurecimiento d epantalla
+		If fader>0
+			SetColor(fr,fg,fb)
+			SetAlpha(fader)
+			Rect(0,0,64,64)
+		Endif
+		
+	End
+	
+	' Crea una nueva palabra
+	Method NewWord:Void()
+
+		lifes = 0
+		time=0
+	    test = ""
+
+		For Local i:Int=0 Until words[level].Length
+            test += "-"
+		Next
+		
+	End
+	
+Private
+
+	'Listas
+	Field strA:=New List<STAR>
+	Field lttA:=New List<LETTER>
+		
+	'Imagenes
+	Field imgTitle:Image
+	Field imgMountains:Image
+	Field imgTree:Image
+	Field imgHud:Image
+	Field imgPlayer:Image
+		
+	'Sonidos
+	Field sndSelect:Sound
+	Field sndPowerup:Sound
+	Field sndHurt:Sound
+	Field sndWin:Sound
+	Field sndOver:Sound
+	Field sndEqual:Sound
+
+	'Enumeradores
+	Enumerate STATE_MENU,STATE_INGAME,STATE_OVER,STATE_LOSE,STATE_WIN
+	
+	'Variables
+	Field fullscreen:bool
+	Field state:Int
+	Field level:Int,lifes:Int,time:Int
+	Field fader:Float,fr:Int,fg:Int,fb:Int
+	Field shake:int
+	Field words:String[],test:String
+	Field titles:String[] = ["Food","Dogs","Fruit","Houses","Ghosts","Furniture","Plants","Water","Birds","Sports","Software","Writing","Geometry"]
+	
+End
